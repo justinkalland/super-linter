@@ -55,7 +55,7 @@ POWERSHELL_LINTER_RULES="$DEFAULT_RULES_LOCATION/$POWERSHELL_FILE_NAME"    # Pat
 CSS_FILE_NAME='.stylelintrc.json'                                   # Name of the file
 CSS_LINTER_RULES="$DEFAULT_RULES_LOCATION/$CSS_FILE_NAME"           # Path to the CSS lint rules
 # OpenAPI Vars
-OPENAPI_FILE_NAME='.openapi.yml'                                   # Name of the file
+OPENAPI_FILE_NAME='.openapirc.yml'                                   # Name of the file
 OPENAPI_LINTER_RULES="$DEFAULT_RULES_LOCATION/$OPENAPI_FILE_NAME"   # Path to the OpenAPI lint rules
 
 #######################################
@@ -567,8 +567,7 @@ LintAnsibleFiles()
 #### Function DetectOpenAPIFile ################################################
 DetectOpenAPIFile()
 {
-  # TODO: this is too generic, need better matching, also what about partial OAS files?
-  grep 'openapi' ${1} > /dev/null
+  egrep '"openapi":|"swagger":|^openapi:|^swagger:' $GITHUB_WORKSPACE/$1 > /dev/null
   if [ $? -eq 0 ]; then
 	  return 0
   else
@@ -1434,7 +1433,7 @@ BuildFileList()
       ############################
       # Check if file is OpenAPI #
       ############################
-      if [ DetectOpenAPIFile $FILE ]; then
+      if DetectOpenAPIFile $FILE; then
         FILE_ARRAY_OPENAPI+=("$FILE")
       fi
       ##########################################################
@@ -1452,7 +1451,7 @@ BuildFileList()
       ############################
       # Check if file is OpenAPI #
       ############################
-      if [ DetectOpenAPIFile $FILE ]; then
+      if DetectOpenAPIFile $FILE; then
         FILE_ARRAY_OPENAPI+=("$FILE")
       fi
       ##########################################################
@@ -2584,11 +2583,22 @@ fi
 # OPENAPI LINTING #
 ###################
 if [ "$VALIDATE_OPENAPI" == "true" ]; then
+  # If we are validating all codebase we need to build file list because not every yml/json file is an OpenAPI file
+  if [ "$VALIDATE_ALL_CODEBASE" == "true" ]; then
+    LIST_FILES=($(cd "$GITHUB_WORKSPACE" || exit; find . -type f -regex ".*\.\(yml\|yaml\|json\)\$" 2>&1))
+    for FILE in "${LIST_FILES[@]}"
+    do
+      if DetectOpenAPIFile $FILE; then
+        FILE_ARRAY_OPENAPI+=("$FILE")
+      fi
+    done
+  fi
+
   ##########################
   # Lint the OpenAPI files #
   ##########################
   # LintCodebase "FILE_TYPE" "LINTER_NAME" "LINTER_CMD" "FILE_TYPES_REGEX" "FILE_ARRAY"
-  LintCodebase "OPENAPI" "spectral" "spectral lint -r $OPENAPI_LINTER_RULES" ".*\.\(yml\|yaml\|json\)\$" "${FILE_ARRAY_OPENAPI[@]}"
+  LintCodebase "OPENAPI" "spectral" "spectral lint -r $OPENAPI_LINTER_RULES" "disabledfileext" "${FILE_ARRAY_OPENAPI[@]}"
 fi
 
 ##########
